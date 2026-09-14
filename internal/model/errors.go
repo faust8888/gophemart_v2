@@ -13,3 +13,6 @@ var ErrOrderAlreadyUploaded = errors.New("order already uploaded")
 
 // ErrOrderConflict возвращается, если номер заказа уже загружен другим пользователем.
 var ErrOrderConflict = errors.New("order uploaded by another user")
+
+// ErrInsufficientFunds возвращается, если на счёте недостаточно баллов для списания.
+var ErrInsufficientFunds = errors.New("insufficient funds")

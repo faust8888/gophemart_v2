@@ -56,6 +56,16 @@ func TestMigrationFileNames(t *testing.T) {
 	if !found {
 		t.Fatalf("migrationFileNames() = %v, want 002_create_orders.sql", names)
 	}
+	found = false
+	for _, name := range names {
+		if name == "003_create_withdrawals.sql" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("migrationFileNames() = %v, want 003_create_withdrawals.sql", names)
+	}
 }
 
 func TestIsUniqueViolation(t *testing.T) {
@@ -103,5 +113,17 @@ func TestOrderOwnerConflict(t *testing.T) {
 	}
 	if err := orderOwnerConflict("other", "user-1"); !errors.Is(err, model.ErrOrderConflict) {
 		t.Fatalf("other user error = %v, want %v", err, model.ErrOrderConflict)
+	}
+}
+
+func TestHasInsufficientFunds(t *testing.T) {
+	if hasInsufficientFunds(751, 751) {
+		t.Fatal("equal amounts should be sufficient")
+	}
+	if !hasInsufficientFunds(10, 751) {
+		t.Fatal("smaller current should be insufficient")
+	}
+	if hasInsufficientFunds(800, 751) {
+		t.Fatal("greater current should be sufficient")
 	}
 }

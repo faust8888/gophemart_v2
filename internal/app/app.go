@@ -46,9 +46,10 @@ func Run(cfg *config.Config) error {
 
 	users := service.NewUserService(store, tokens)
 	orders := service.NewOrderService(store)
+	balances := service.NewBalanceService(store)
 	srv := &http.Server{
 		Addr:              cfg.RunAddress,
-		Handler:           handler.New(users, orders, tokens).Routes(),
+		Handler:           handler.New(users, orders, balances, tokens).Routes(),
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 

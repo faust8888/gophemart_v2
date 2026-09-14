@@ -40,6 +40,25 @@ func (m *mockOrders) List(_ context.Context, _ string) ([]model.Order, error) {
 	return m.orders, nil
 }
 
+type mockBalance struct {
+	balance *model.Balance
+	err     error
+}
+
+func (m *mockBalance) Get(_ context.Context, _ string) (*model.Balance, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.balance == nil {
+		return &model.Balance{}, nil
+	}
+	return m.balance, nil
+}
+
+func (m *mockBalance) Withdraw(_ context.Context, _, _ string, _ float64) error {
+	return m.err
+}
+
 type mockAuth struct {
 	userID string
 	err    error
@@ -59,7 +78,7 @@ func newHandler(users userService) *Handler {
 	if users == nil {
 		users = &mockUsers{}
 	}
-	return New(users, &mockOrders{}, &mockAuth{userID: "user-1"})
+	return New(users, &mockOrders{}, &mockBalance{}, &mockAuth{userID: "user-1"})
 }
 
 func newOrderHandler(orders *mockOrders, tokens *mockAuth) *Handler {
@@ -69,7 +88,17 @@ func newOrderHandler(orders *mockOrders, tokens *mockAuth) *Handler {
 	if tokens == nil {
 		tokens = &mockAuth{userID: "user-1"}
 	}
-	return New(&mockUsers{}, orders, tokens)
+	return New(&mockUsers{}, orders, &mockBalance{}, tokens)
+}
+
+func newBalanceHandler(balances *mockBalance, tokens *mockAuth) *Handler {
+	if balances == nil {
+		balances = &mockBalance{}
+	}
+	if tokens == nil {
+		tokens = &mockAuth{userID: "user-1"}
+	}
+	return New(&mockUsers{}, &mockOrders{}, balances, tokens)
 }
 
 func authorizedRequest(method, path, body string) *http.Request {

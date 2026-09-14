@@ -24,19 +24,26 @@ type orderService interface {
 	List(ctx context.Context, userID string) ([]model.Order, error)
 }
 
-// Handler обрабатывает HTTP-запросы API системы лояльности.
-type Handler struct {
-	users  userService
-	orders orderService
-	tokens tokenParser
+type balanceService interface {
+	Get(ctx context.Context, userID string) (*model.Balance, error)
+	Withdraw(ctx context.Context, userID, orderNumber string, amount float64) error
 }
 
-// New создаёт HTTP-обработчик API с сервисами пользователей, заказов и проверкой токенов.
-func New(users userService, orders orderService, tokens tokenParser) *Handler {
+// Handler обрабатывает HTTP-запросы API системы лояльности.
+type Handler struct {
+	users    userService
+	orders   orderService
+	balances balanceService
+	tokens   tokenParser
+}
+
+// New создаёт HTTP-обработчик API с сервисами пользователей, заказов, баланса и проверкой токенов.
+func New(users userService, orders orderService, balances balanceService, tokens tokenParser) *Handler {
 	return &Handler{
-		users:  users,
-		orders: orders,
-		tokens: tokens,
+		users:    users,
+		orders:   orders,
+		balances: balances,
+		tokens:   tokens,
 	}
 }
 
@@ -47,6 +54,8 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /api/user/login", h.Login)
 	mux.Handle("POST /api/user/orders", h.requireAuth(http.HandlerFunc(h.UploadOrder)))
 	mux.Handle("GET /api/user/orders", h.requireAuth(http.HandlerFunc(h.ListOrders)))
+	mux.Handle("GET /api/user/balance", h.requireAuth(http.HandlerFunc(h.GetBalance)))
+	mux.Handle("POST /api/user/balance/withdraw", h.requireAuth(http.HandlerFunc(h.Withdraw)))
 	return recoverMiddleware(mux)
 }
 
