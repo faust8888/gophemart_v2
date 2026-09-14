@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -62,6 +63,18 @@ func TestIsUniqueViolation(t *testing.T) {
 	wrapped := errors.Join(errors.New("wrap"), unique)
 	if !isUniqueViolation(wrapped) {
 		t.Fatal("isUniqueViolation(wrapped unique) = false, want true")
+	}
+}
+
+func TestIsNoRows(t *testing.T) {
+	if isNoRows(errors.New("other")) {
+		t.Fatal("isNoRows(generic) = true, want false")
+	}
+	if isNoRows(nil) {
+		t.Fatal("isNoRows(nil) = true, want false")
+	}
+	if !isNoRows(pgx.ErrNoRows) {
+		t.Fatal("isNoRows(pgx.ErrNoRows) = false, want true")
 	}
 }
 

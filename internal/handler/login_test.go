@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -13,27 +12,13 @@ import (
 	"github.com/faust8888/gophemart_v2/internal/service"
 )
 
-type mockUsers struct {
-	user  *model.User
-	token string
-	err   error
-}
-
-func (m *mockUsers) Register(_ context.Context, _, _ string) (*model.User, string, error) {
-	return m.user, m.token, m.err
-}
-
-func (m *mockUsers) Login(_ context.Context, _, _ string) (*model.User, string, error) {
-	return m.user, m.token, m.err
-}
-
-func TestRegister_Success(t *testing.T) {
+func TestLogin_Success(t *testing.T) {
 	h := New(&mockUsers{
 		user:  &model.User{ID: "1", Login: "alice"},
 		token: "jwt-token",
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/user/register", strings.NewReader(`{"login":"alice","password":"secret"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/user/login", strings.NewReader(`{"login":"alice","password":"secret"}`))
 	rec := httptest.NewRecorder()
 	h.Routes().ServeHTTP(rec, req)
 
@@ -59,7 +44,7 @@ func TestRegister_Success(t *testing.T) {
 	}
 }
 
-func TestRegister_BadRequest(t *testing.T) {
+func TestLogin_BadRequest(t *testing.T) {
 	h := New(&mockUsers{})
 
 	cases := []struct {
@@ -72,7 +57,7 @@ func TestRegister_BadRequest(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/api/user/register", strings.NewReader(tc.body))
+			req := httptest.NewRequest(http.MethodPost, "/api/user/login", strings.NewReader(tc.body))
 			rec := httptest.NewRecorder()
 			h.Routes().ServeHTTP(rec, req)
 			if rec.Code != http.StatusBadRequest {
@@ -82,9 +67,9 @@ func TestRegister_BadRequest(t *testing.T) {
 	}
 }
 
-func TestRegister_InvalidInputFromService(t *testing.T) {
+func TestLogin_InvalidInputFromService(t *testing.T) {
 	h := New(&mockUsers{err: service.ErrInvalidInput})
-	req := httptest.NewRequest(http.MethodPost, "/api/user/register", strings.NewReader(`{"login":"","password":""}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/user/login", strings.NewReader(`{"login":"","password":""}`))
 	rec := httptest.NewRecorder()
 	h.Routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
@@ -92,19 +77,19 @@ func TestRegister_InvalidInputFromService(t *testing.T) {
 	}
 }
 
-func TestRegister_Conflict(t *testing.T) {
-	h := New(&mockUsers{err: model.ErrLoginTaken})
-	req := httptest.NewRequest(http.MethodPost, "/api/user/register", strings.NewReader(`{"login":"alice","password":"secret"}`))
+func TestLogin_Unauthorized(t *testing.T) {
+	h := New(&mockUsers{err: service.ErrInvalidCredentials})
+	req := httptest.NewRequest(http.MethodPost, "/api/user/login", strings.NewReader(`{"login":"alice","password":"wrong"}`))
 	rec := httptest.NewRecorder()
 	h.Routes().ServeHTTP(rec, req)
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusConflict)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
 	}
 }
 
-func TestRegister_InternalError(t *testing.T) {
+func TestLogin_InternalError(t *testing.T) {
 	h := New(&mockUsers{err: errors.New("db down")})
-	req := httptest.NewRequest(http.MethodPost, "/api/user/register", bytes.NewBufferString(`{"login":"alice","password":"secret"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/user/login", bytes.NewBufferString(`{"login":"alice","password":"secret"}`))
 	rec := httptest.NewRecorder()
 	h.Routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusInternalServerError {
@@ -112,23 +97,12 @@ func TestRegister_InternalError(t *testing.T) {
 	}
 }
 
-func TestRegister_MethodNotAllowed(t *testing.T) {
+func TestLogin_MethodNotAllowed(t *testing.T) {
 	h := New(&mockUsers{})
-	req := httptest.NewRequest(http.MethodGet, "/api/user/register", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/user/login", nil)
 	rec := httptest.NewRecorder()
 	h.Routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusMethodNotAllowed)
-	}
-}
-
-func TestRecoverMiddleware(t *testing.T) {
-	h := recoverMiddleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		panic("boom")
-	}))
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
 }

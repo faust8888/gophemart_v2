@@ -16,6 +16,7 @@ const (
 
 type userService interface {
 	Register(ctx context.Context, login, password string) (*model.User, string, error)
+	Login(ctx context.Context, login, password string) (*model.User, string, error)
 }
 
 // Handler обрабатывает HTTP-запросы API системы лояльности.
@@ -32,6 +33,7 @@ func New(users userService) *Handler {
 func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/user/register", h.Register)
+	mux.HandleFunc("POST /api/user/login", h.Login)
 	return recoverMiddleware(mux)
 }
 

@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -9,18 +8,11 @@ import (
 	"github.com/faust8888/gophemart_v2/internal/service"
 )
 
-type registerRequest struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
-}
-
 // Register регистрирует пользователя по паре логин/пароль и сразу аутентифицирует его.
 // Возможные коды ответа: 200, 400, 409, 500.
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
-
-	var req registerRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	req, err := decodeCredentials(w, r)
+	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

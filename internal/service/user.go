@@ -13,10 +13,19 @@ import (
 // ErrInvalidInput возвращается, если логин или пароль не заданы.
 var ErrInvalidInput = errors.New("invalid login or password")
 
-// UserRepository описывает операции сохранения пользователей.
+// ErrInvalidCredentials возвращается, если пара логин/пароль неверна.
+var ErrInvalidCredentials = errors.New("invalid login or password")
+
+// dummyPasswordHash — валидный bcrypt-хеш, используется только для выравнивания
+// времени ответа, когда пользователь с указанным логином не найден.
+const dummyPasswordHash = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+
+// UserRepository описывает операции сохранения и чтения пользователей.
 type UserRepository interface {
 	// Create сохраняет нового пользователя с уникальным логином.
 	Create(ctx context.Context, login, passwordHash string) (*model.User, error)
+	// GetByLogin возвращает пользователя по логину.
+	GetByLogin(ctx context.Context, login string) (*model.User, error)
 }
 
 // TokenIssuer выпускает токен аутентификации для пользователя.
@@ -33,7 +42,7 @@ type UserService struct {
 }
 
 // NewUserService создаёт сервис пользователей с bcrypt-хешированием паролей
-// и выпуском токена после успешной регистрации.
+// и выпуском токена после успешной регистрации или аутентификации.
 func NewUserService(repo UserRepository, tokens TokenIssuer) *UserService {
 	return &UserService{
 		repo:     repo,
@@ -61,6 +70,33 @@ func (s *UserService) Register(ctx context.Context, login, password string) (*mo
 			return nil, "", model.ErrLoginTaken
 		}
 		return nil, "", err
+	}
+
+	token, err := s.tokens.IssueToken(user.ID, user.Login)
+	if err != nil {
+		return nil, "", err
+	}
+	return user, token, nil
+}
+
+// Login проверяет пару логин/пароль и возвращает токен аутентификации.
+func (s *UserService) Login(ctx context.Context, login, password string) (*model.User, string, error) {
+	login = strings.TrimSpace(login)
+	if login == "" || password == "" {
+		return nil, "", ErrInvalidInput
+	}
+
+	user, err := s.repo.GetByLogin(ctx, login)
+	if err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			_ = bcrypt.CompareHashAndPassword([]byte(dummyPasswordHash), []byte(password))
+			return nil, "", ErrInvalidCredentials
+		}
+		return nil, "", err
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		return nil, "", ErrInvalidCredentials
 	}
 
 	token, err := s.tokens.IssueToken(user.ID, user.Login)
