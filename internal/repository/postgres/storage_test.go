@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/faust8888/gophemart_v2/internal/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -44,6 +45,16 @@ func TestMigrationFileNames(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("migrationFileNames() = %v, want 001_create_users.sql", names)
+	}
+	found = false
+	for _, name := range names {
+		if name == "002_create_orders.sql" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("migrationFileNames() = %v, want 002_create_orders.sql", names)
 	}
 }
 
@@ -84,4 +95,13 @@ func TestClose_NilSafe(t *testing.T) {
 
 	empty := &Storage{}
 	empty.Close()
+}
+
+func TestOrderOwnerConflict(t *testing.T) {
+	if err := orderOwnerConflict("user-1", "user-1"); !errors.Is(err, model.ErrOrderAlreadyUploaded) {
+		t.Fatalf("same user error = %v, want %v", err, model.ErrOrderAlreadyUploaded)
+	}
+	if err := orderOwnerConflict("other", "user-1"); !errors.Is(err, model.ErrOrderConflict) {
+		t.Fatalf("other user error = %v, want %v", err, model.ErrOrderConflict)
+	}
 }

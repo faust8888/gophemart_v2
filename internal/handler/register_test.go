@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -13,22 +12,8 @@ import (
 	"github.com/faust8888/gophemart_v2/internal/service"
 )
 
-type mockUsers struct {
-	user  *model.User
-	token string
-	err   error
-}
-
-func (m *mockUsers) Register(_ context.Context, _, _ string) (*model.User, string, error) {
-	return m.user, m.token, m.err
-}
-
-func (m *mockUsers) Login(_ context.Context, _, _ string) (*model.User, string, error) {
-	return m.user, m.token, m.err
-}
-
 func TestRegister_Success(t *testing.T) {
-	h := New(&mockUsers{
+	h := newHandler(&mockUsers{
 		user:  &model.User{ID: "1", Login: "alice"},
 		token: "jwt-token",
 	})
@@ -60,7 +45,7 @@ func TestRegister_Success(t *testing.T) {
 }
 
 func TestRegister_BadRequest(t *testing.T) {
-	h := New(&mockUsers{})
+	h := newHandler(&mockUsers{})
 
 	cases := []struct {
 		name string
@@ -83,7 +68,7 @@ func TestRegister_BadRequest(t *testing.T) {
 }
 
 func TestRegister_InvalidInputFromService(t *testing.T) {
-	h := New(&mockUsers{err: service.ErrInvalidInput})
+	h := newHandler(&mockUsers{err: service.ErrInvalidInput})
 	req := httptest.NewRequest(http.MethodPost, "/api/user/register", strings.NewReader(`{"login":"","password":""}`))
 	rec := httptest.NewRecorder()
 	h.Routes().ServeHTTP(rec, req)
@@ -93,7 +78,7 @@ func TestRegister_InvalidInputFromService(t *testing.T) {
 }
 
 func TestRegister_Conflict(t *testing.T) {
-	h := New(&mockUsers{err: model.ErrLoginTaken})
+	h := newHandler(&mockUsers{err: model.ErrLoginTaken})
 	req := httptest.NewRequest(http.MethodPost, "/api/user/register", strings.NewReader(`{"login":"alice","password":"secret"}`))
 	rec := httptest.NewRecorder()
 	h.Routes().ServeHTTP(rec, req)
@@ -103,7 +88,7 @@ func TestRegister_Conflict(t *testing.T) {
 }
 
 func TestRegister_InternalError(t *testing.T) {
-	h := New(&mockUsers{err: errors.New("db down")})
+	h := newHandler(&mockUsers{err: errors.New("db down")})
 	req := httptest.NewRequest(http.MethodPost, "/api/user/register", bytes.NewBufferString(`{"login":"alice","password":"secret"}`))
 	rec := httptest.NewRecorder()
 	h.Routes().ServeHTTP(rec, req)
@@ -113,7 +98,7 @@ func TestRegister_InternalError(t *testing.T) {
 }
 
 func TestRegister_MethodNotAllowed(t *testing.T) {
-	h := New(&mockUsers{})
+	h := newHandler(&mockUsers{})
 	req := httptest.NewRequest(http.MethodGet, "/api/user/register", nil)
 	rec := httptest.NewRecorder()
 	h.Routes().ServeHTTP(rec, req)

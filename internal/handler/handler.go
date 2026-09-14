@@ -19,14 +19,24 @@ type userService interface {
 	Login(ctx context.Context, login, password string) (*model.User, string, error)
 }
 
-// Handler обрабатывает HTTP-запросы API системы лояльности.
-type Handler struct {
-	users userService
+type orderService interface {
+	Upload(ctx context.Context, userID, number string) error
 }
 
-// New создаёт HTTP-обработчик, использующий переданный сервис пользователей.
-func New(users userService) *Handler {
-	return &Handler{users: users}
+// Handler обрабатывает HTTP-запросы API системы лояльности.
+type Handler struct {
+	users  userService
+	orders orderService
+	tokens tokenParser
+}
+
+// New создаёт HTTP-обработчик API с сервисами пользователей, заказов и проверкой токенов.
+func New(users userService, orders orderService, tokens tokenParser) *Handler {
+	return &Handler{
+		users:  users,
+		orders: orders,
+		tokens: tokens,
+	}
 }
 
 // Routes возвращает маршрутизатор HTTP API.
@@ -34,6 +44,7 @@ func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/user/register", h.Register)
 	mux.HandleFunc("POST /api/user/login", h.Login)
+	mux.Handle("POST /api/user/orders", h.requireAuth(http.HandlerFunc(h.UploadOrder)))
 	return recoverMiddleware(mux)
 }
 
