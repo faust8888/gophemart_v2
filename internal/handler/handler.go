@@ -27,6 +27,7 @@ type orderService interface {
 type balanceService interface {
 	Get(ctx context.Context, userID string) (*model.Balance, error)
 	Withdraw(ctx context.Context, userID, orderNumber string, amount float64) error
+	ListWithdrawals(ctx context.Context, userID string) ([]model.Withdrawal, error)
 }
 
 // Handler обрабатывает HTTP-запросы API системы лояльности.
@@ -56,6 +57,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("GET /api/user/orders", h.requireAuth(http.HandlerFunc(h.ListOrders)))
 	mux.Handle("GET /api/user/balance", h.requireAuth(http.HandlerFunc(h.GetBalance)))
 	mux.Handle("POST /api/user/balance/withdraw", h.requireAuth(http.HandlerFunc(h.Withdraw)))
+	mux.Handle("GET /api/user/withdrawals", h.requireAuth(http.HandlerFunc(h.ListWithdrawals)))
 	return recoverMiddleware(mux)
 }
 

@@ -14,6 +14,8 @@ type BalanceRepository interface {
 	GetBalance(ctx context.Context, userID string) (*model.Balance, error)
 	// CreateWithdrawal регистрирует списание баллов в счёт оплаты заказа.
 	CreateWithdrawal(ctx context.Context, userID, orderNumber string, amount float64) error
+	// ListWithdrawals возвращает списания пользователя, от новых к старым.
+	ListWithdrawals(ctx context.Context, userID string) ([]model.Withdrawal, error)
 }
 
 // BalanceService реализует сценарии работы с балансом баллов лояльности.
@@ -49,4 +51,12 @@ func (s *BalanceService) Withdraw(ctx context.Context, userID, orderNumber strin
 	}
 
 	return s.repo.CreateWithdrawal(ctx, userID, orderNumber, amount)
+}
+
+// ListWithdrawals возвращает списания пользователя, отсортированные от новых к старым.
+func (s *BalanceService) ListWithdrawals(ctx context.Context, userID string) ([]model.Withdrawal, error) {
+	if userID == "" {
+		return nil, ErrInvalidCredentials
+	}
+	return s.repo.ListWithdrawals(ctx, userID)
 }

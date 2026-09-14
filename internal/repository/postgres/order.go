@@ -101,3 +101,50 @@ func (s *Storage) ListByUser(ctx context.Context, userID string) ([]model.Order,
 	}
 	return orders, nil
 }
+
+// ListUnprocessed возвращает заказы со статусами NEW и PROCESSING для опроса системы расчёта.
+func (s *Storage) ListUnprocessed(ctx context.Context) ([]model.Order, error) {
+	const q = `
+		SELECT number, user_id::text, status, accrual, uploaded_at
+		FROM orders
+		WHERE status IN ($1, $2)
+		ORDER BY uploaded_at ASC
+		LIMIT 100
+	`
+
+	rows, err := s.pool.Query(ctx, q, model.OrderStatusNew, model.OrderStatusProcessing)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	orders := make([]model.Order, 0)
+	for rows.Next() {
+		var order model.Order
+		if err := rows.Scan(
+			&order.Number,
+			&order.UserID,
+			&order.Status,
+			&order.Accrual,
+			&order.UploadedAt,
+		); err != nil {
+			return nil, err
+		}
+		orders = append(orders, order)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return orders, nil
+}
+
+// UpdateAccrual обновляет статус и начисление заказа, если он ещё не в финальном статусе.
+func (s *Storage) UpdateAccrual(ctx context.Context, number, status string, accrual *float64) error {
+	const q = `
+		UPDATE orders
+		SET status = $2, accrual = $3
+		WHERE number = $1 AND status IN ($4, $5)
+	`
+	_, err := s.pool.Exec(ctx, q, number, status, accrual, model.OrderStatusNew, model.OrderStatusProcessing)
+	return err
+}

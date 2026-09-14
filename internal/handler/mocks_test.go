@@ -41,8 +41,9 @@ func (m *mockOrders) List(_ context.Context, _ string) ([]model.Order, error) {
 }
 
 type mockBalance struct {
-	balance *model.Balance
-	err     error
+	balance     *model.Balance
+	withdrawals []model.Withdrawal
+	err         error
 }
 
 func (m *mockBalance) Get(_ context.Context, _ string) (*model.Balance, error) {
@@ -57,6 +58,13 @@ func (m *mockBalance) Get(_ context.Context, _ string) (*model.Balance, error) {
 
 func (m *mockBalance) Withdraw(_ context.Context, _, _ string, _ float64) error {
 	return m.err
+}
+
+func (m *mockBalance) ListWithdrawals(_ context.Context, _ string) ([]model.Withdrawal, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.withdrawals, nil
 }
 
 type mockAuth struct {

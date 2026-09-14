@@ -11,11 +11,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/faust8888/gophemart_v2/internal/accrual"
 	"github.com/faust8888/gophemart_v2/internal/auth"
 	"github.com/faust8888/gophemart_v2/internal/config"
 	"github.com/faust8888/gophemart_v2/internal/handler"
 	"github.com/faust8888/gophemart_v2/internal/repository/postgres"
 	"github.com/faust8888/gophemart_v2/internal/service"
+	"github.com/faust8888/gophemart_v2/internal/worker"
 )
 
 const (
@@ -47,6 +49,25 @@ func Run(cfg *config.Config) error {
 	users := service.NewUserService(store, tokens)
 	orders := service.NewOrderService(store)
 	balances := service.NewBalanceService(store)
+
+	runCtx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
+
+	pollerDone := make(chan struct{})
+	if cfg.AccrualAddress != "" {
+		poller := worker.NewAccrualPoller(
+			store,
+			accrual.NewClient(cfg.AccrualAddress, nil),
+			worker.DefaultPollInterval,
+		)
+		go func() {
+			defer close(pollerDone)
+			poller.Run(runCtx)
+		}()
+	} else {
+		close(pollerDone)
+	}
+
 	srv := &http.Server{
 		Addr:              cfg.RunAddress,
 		Handler:           handler.New(users, orders, balances, tokens).Routes(),
@@ -62,12 +83,22 @@ func Run(cfg *config.Config) error {
 		close(errCh)
 	}()
 
+	waitPoller := func() {
+		cancelRun()
+		select {
+		case <-pollerDone:
+		case <-time.After(shutdownTimeout):
+		}
+	}
+
 	select {
 	case <-ctx.Done():
+		waitPoller()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
 	case err := <-errCh:
+		waitPoller()
 		return err
 	}
 }

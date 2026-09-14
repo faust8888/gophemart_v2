@@ -42,3 +42,38 @@ func (s *Storage) CreateWithdrawal(ctx context.Context, userID, orderNumber stri
 	}
 	return tx.Commit(ctx)
 }
+
+// ListWithdrawals возвращает списания пользователя, отсортированные по времени
+// обработки от самых новых к самым старым.
+func (s *Storage) ListWithdrawals(ctx context.Context, userID string) ([]model.Withdrawal, error) {
+	const q = `
+		SELECT order_number, user_id::text, amount, processed_at
+		FROM withdrawals
+		WHERE user_id = $1::uuid
+		ORDER BY processed_at DESC
+	`
+
+	rows, err := s.pool.Query(ctx, q, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	withdrawals := make([]model.Withdrawal, 0)
+	for rows.Next() {
+		var item model.Withdrawal
+		if err := rows.Scan(
+			&item.OrderNumber,
+			&item.UserID,
+			&item.Amount,
+			&item.ProcessedAt,
+		); err != nil {
+			return nil, err
+		}
+		withdrawals = append(withdrawals, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return withdrawals, nil
+}

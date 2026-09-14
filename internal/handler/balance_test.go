@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/faust8888/gophemart_v2/internal/model"
 	"github.com/faust8888/gophemart_v2/internal/service"
@@ -165,6 +166,83 @@ func TestWithdraw_MissingUserInContext(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/user/balance/withdraw", strings.NewReader(`{"order":"12345678903","sum":751}`))
 	rec := httptest.NewRecorder()
 	h.Withdraw(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestListWithdrawals_Success(t *testing.T) {
+	processed := time.Date(2020, 12, 9, 16, 9, 57, 0, time.FixedZone("MSK", 3*3600))
+	h := newBalanceHandler(&mockBalance{withdrawals: []model.Withdrawal{
+		{OrderNumber: "2377225624", Amount: 500, ProcessedAt: processed},
+	}}, nil)
+
+	rec := httptest.NewRecorder()
+	h.Routes().ServeHTTP(rec, authorizedRequest(http.MethodGet, "/api/user/withdrawals", ""))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Fatalf("Content-Type = %q, want application/json", got)
+	}
+
+	var got []withdrawalResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("len = %d, want 1", len(got))
+	}
+	if got[0].Order != "2377225624" || got[0].Sum != 500 {
+		t.Fatalf("withdrawal = %+v", got[0])
+	}
+	if got[0].ProcessedAt != "2020-12-09T16:09:57+03:00" {
+		t.Fatalf("processed_at = %q, want RFC3339", got[0].ProcessedAt)
+	}
+}
+
+func TestListWithdrawals_NoContent(t *testing.T) {
+	h := newBalanceHandler(&mockBalance{withdrawals: nil}, nil)
+	rec := httptest.NewRecorder()
+	h.Routes().ServeHTTP(rec, authorizedRequest(http.MethodGet, "/api/user/withdrawals", ""))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+}
+
+func TestListWithdrawals_Unauthorized(t *testing.T) {
+	h := newBalanceHandler(nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/user/withdrawals", nil)
+	rec := httptest.NewRecorder()
+	h.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestListWithdrawals_UnauthorizedCredentials(t *testing.T) {
+	h := newBalanceHandler(&mockBalance{err: service.ErrInvalidCredentials}, nil)
+	rec := httptest.NewRecorder()
+	h.Routes().ServeHTTP(rec, authorizedRequest(http.MethodGet, "/api/user/withdrawals", ""))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestListWithdrawals_InternalError(t *testing.T) {
+	h := newBalanceHandler(&mockBalance{err: errors.New("db down")}, nil)
+	rec := httptest.NewRecorder()
+	h.Routes().ServeHTTP(rec, authorizedRequest(http.MethodGet, "/api/user/withdrawals", ""))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestListWithdrawals_MissingUserInContext(t *testing.T) {
+	h := newBalanceHandler(nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/user/withdrawals", nil)
+	rec := httptest.NewRecorder()
+	h.ListWithdrawals(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
 	}
