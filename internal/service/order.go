@@ -16,6 +16,8 @@ var ErrInvalidOrderNumber = errors.New("invalid order number")
 type OrderRepository interface {
 	// CreateOrder сохраняет номер заказа, привязанный к пользователю.
 	CreateOrder(ctx context.Context, userID, number string) (*model.Order, error)
+	// ListByUser возвращает заказы пользователя, от новых к старым.
+	ListByUser(ctx context.Context, userID string) ([]model.Order, error)
 }
 
 // OrderService реализует сценарии загрузки номеров заказов.
@@ -46,4 +48,12 @@ func (s *OrderService) Upload(ctx context.Context, userID, number string) error 
 
 	_, err := s.repo.CreateOrder(ctx, userID, number)
 	return err
+}
+
+// List возвращает заказы пользователя, отсортированные от новых к старым.
+func (s *OrderService) List(ctx context.Context, userID string) ([]model.Order, error) {
+	if userID == "" {
+		return nil, ErrInvalidCredentials
+	}
+	return s.repo.ListByUser(ctx, userID)
 }

@@ -21,6 +21,7 @@ type userService interface {
 
 type orderService interface {
 	Upload(ctx context.Context, userID, number string) error
+	List(ctx context.Context, userID string) ([]model.Order, error)
 }
 
 // Handler обрабатывает HTTP-запросы API системы лояльности.
@@ -45,6 +46,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /api/user/register", h.Register)
 	mux.HandleFunc("POST /api/user/login", h.Login)
 	mux.Handle("POST /api/user/orders", h.requireAuth(http.HandlerFunc(h.UploadOrder)))
+	mux.Handle("GET /api/user/orders", h.requireAuth(http.HandlerFunc(h.ListOrders)))
 	return recoverMiddleware(mux)
 }
 

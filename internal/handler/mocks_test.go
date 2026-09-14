@@ -25,11 +25,19 @@ func (m *mockUsers) Login(_ context.Context, _, _ string) (*model.User, string, 
 }
 
 type mockOrders struct {
-	err error
+	err    error
+	orders []model.Order
 }
 
 func (m *mockOrders) Upload(_ context.Context, _, _ string) error {
 	return m.err
+}
+
+func (m *mockOrders) List(_ context.Context, _ string) ([]model.Order, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.orders, nil
 }
 
 type mockAuth struct {

@@ -65,3 +65,39 @@ func orderOwnerConflict(existingUserID, userID string) error {
 	}
 	return model.ErrOrderConflict
 }
+
+// ListByUser возвращает заказы пользователя, отсортированные по времени загрузки
+// от самых новых к самым старым.
+func (s *Storage) ListByUser(ctx context.Context, userID string) ([]model.Order, error) {
+	const q = `
+		SELECT number, user_id::text, status, accrual, uploaded_at
+		FROM orders
+		WHERE user_id = $1::uuid
+		ORDER BY uploaded_at DESC
+	`
+
+	rows, err := s.pool.Query(ctx, q, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	orders := make([]model.Order, 0)
+	for rows.Next() {
+		var order model.Order
+		if err := rows.Scan(
+			&order.Number,
+			&order.UserID,
+			&order.Status,
+			&order.Accrual,
+			&order.UploadedAt,
+		); err != nil {
+			return nil, err
+		}
+		orders = append(orders, order)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return orders, nil
+}
