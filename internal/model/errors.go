@@ -16,3 +16,6 @@ var ErrOrderConflict = errors.New("order uploaded by another user")
 
 // ErrInsufficientFunds возвращается, если на счёте недостаточно баллов для списания.
 var ErrInsufficientFunds = errors.New("insufficient funds")
+
+// ErrOrderAlreadyWithdrawn возвращается, если по номеру заказа уже было списание баллов.
+var ErrOrderAlreadyWithdrawn = errors.New("order already withdrawn")

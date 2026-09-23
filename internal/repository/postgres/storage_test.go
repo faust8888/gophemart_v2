@@ -116,6 +116,22 @@ func TestOrderOwnerConflict(t *testing.T) {
 	}
 }
 
+func TestWithdrawalInsertError(t *testing.T) {
+	if err := withdrawalInsertError(nil); err != nil {
+		t.Fatalf("withdrawalInsertError(nil) = %v, want nil", err)
+	}
+
+	other := errors.New("db down")
+	if err := withdrawalInsertError(other); !errors.Is(err, other) {
+		t.Fatalf("withdrawalInsertError(other) = %v, want %v", err, other)
+	}
+
+	unique := &pgconn.PgError{Code: uniqueViolationCode}
+	if err := withdrawalInsertError(unique); !errors.Is(err, model.ErrOrderAlreadyWithdrawn) {
+		t.Fatalf("withdrawalInsertError(unique) = %v, want %v", err, model.ErrOrderAlreadyWithdrawn)
+	}
+}
+
 func TestHasInsufficientFunds(t *testing.T) {
 	if hasInsufficientFunds(751, 751) {
 		t.Fatal("equal amounts should be sufficient")

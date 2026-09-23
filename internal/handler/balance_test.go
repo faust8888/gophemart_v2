@@ -143,6 +143,15 @@ func TestWithdraw_UnprocessableEntity(t *testing.T) {
 	}
 }
 
+func TestWithdraw_AlreadyWithdrawn(t *testing.T) {
+	h := newBalanceHandler(&mockBalance{err: model.ErrOrderAlreadyWithdrawn}, nil)
+	rec := httptest.NewRecorder()
+	h.Routes().ServeHTTP(rec, authorizedRequest(http.MethodPost, "/api/user/balance/withdraw", `{"order":"12345678903","sum":751}`))
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnprocessableEntity)
+	}
+}
+
 func TestWithdraw_UnauthorizedCredentials(t *testing.T) {
 	h := newBalanceHandler(&mockBalance{err: service.ErrInvalidCredentials}, nil)
 	rec := httptest.NewRecorder()

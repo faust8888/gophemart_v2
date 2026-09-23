@@ -9,6 +9,7 @@ import (
 // CreateWithdrawal регистрирует списание баллов в счёт оплаты заказа.
 // Операция выполняется в транзакции: строка пользователя блокируется,
 // проверяется достаточность средств, затем создаётся запись списания.
+// Повторное списание по тому же order_number возвращает [model.ErrOrderAlreadyWithdrawn].
 func (s *Storage) CreateWithdrawal(ctx context.Context, userID, orderNumber string, amount float64) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -38,9 +39,16 @@ func (s *Storage) CreateWithdrawal(ctx context.Context, userID, orderNumber stri
 		VALUES ($1::uuid, $2, $3)
 	`, userID, orderNumber, amount)
 	if err != nil {
-		return err
+		return withdrawalInsertError(err)
 	}
 	return tx.Commit(ctx)
+}
+
+func withdrawalInsertError(err error) error {
+	if isUniqueViolation(err) {
+		return model.ErrOrderAlreadyWithdrawn
+	}
+	return err
 }
 
 // ListWithdrawals возвращает списания пользователя, отсортированные по времени

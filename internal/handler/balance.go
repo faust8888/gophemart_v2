@@ -64,7 +64,7 @@ func (h *Handler) Withdraw(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 	case errors.Is(err, model.ErrInsufficientFunds):
 		w.WriteHeader(http.StatusPaymentRequired)
-	case errors.Is(err, service.ErrInvalidOrderNumber):
+	case errors.Is(err, service.ErrInvalidOrderNumber), errors.Is(err, model.ErrOrderAlreadyWithdrawn):
 		w.WriteHeader(http.StatusUnprocessableEntity)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
