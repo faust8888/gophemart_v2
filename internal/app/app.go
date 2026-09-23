@@ -31,6 +31,12 @@ func Run(cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
+	if err := config.ResolveAuthSecret(cfg); err != nil {
+		return err
+	}
+	if cfg.EphemeralAuthSecret {
+		slog.Warn("AUTH_SECRET is not set; using a random ephemeral JWT secret; tokens will not survive process restart")
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

@@ -10,7 +10,8 @@ func TestParse_Defaults(t *testing.T) {
 	t.Setenv(EnvRunAddress, "")
 	t.Setenv(EnvDatabaseURI, "")
 	t.Setenv(EnvAccrualAddress, "")
-	t.Setenv("AUTH_SECRET", "")
+	t.Setenv(EnvAuthSecret, "")
+	t.Setenv(EnvEnvironment, "")
 
 	cfg, err := Parse(nil)
 	if err != nil {
@@ -25,8 +26,11 @@ func TestParse_Defaults(t *testing.T) {
 	if cfg.AccrualAddress != "" {
 		t.Errorf("AccrualAddress = %q, want empty", cfg.AccrualAddress)
 	}
-	if cfg.AuthSecret != defaultAuthSecret {
-		t.Errorf("AuthSecret = %q, want %q", cfg.AuthSecret, defaultAuthSecret)
+	if cfg.AuthSecret == "" {
+		t.Fatal("AuthSecret is empty, want ephemeral secret")
+	}
+	if !cfg.EphemeralAuthSecret {
+		t.Fatal("EphemeralAuthSecret = false, want true when AUTH_SECRET is unset")
 	}
 }
 
@@ -34,6 +38,8 @@ func TestParse_Flags(t *testing.T) {
 	t.Setenv(EnvRunAddress, "")
 	t.Setenv(EnvDatabaseURI, "")
 	t.Setenv(EnvAccrualAddress, "")
+	t.Setenv(EnvAuthSecret, "")
+	t.Setenv(EnvEnvironment, "")
 
 	cfg, err := Parse([]string{
 		"-a", "localhost:8081",
@@ -58,7 +64,8 @@ func TestParse_Env(t *testing.T) {
 	t.Setenv(EnvRunAddress, "localhost:9090")
 	t.Setenv(EnvDatabaseURI, "postgres://user:pass@localhost/db")
 	t.Setenv(EnvAccrualAddress, "http://accrual:8080")
-	t.Setenv("AUTH_SECRET", "from-env")
+	t.Setenv(EnvAuthSecret, "from-env")
+	t.Setenv(EnvEnvironment, "")
 
 	cfg, err := Parse(nil)
 	if err != nil {
@@ -75,6 +82,9 @@ func TestParse_Env(t *testing.T) {
 	}
 	if cfg.AuthSecret != "from-env" {
 		t.Errorf("AuthSecret = %q, want env value", cfg.AuthSecret)
+	}
+	if cfg.EphemeralAuthSecret {
+		t.Fatal("EphemeralAuthSecret = true, want false when AUTH_SECRET is set")
 	}
 }
 
@@ -113,6 +123,69 @@ func TestParse_Help(t *testing.T) {
 	_, err := Parse([]string{"-h"})
 	if !errors.Is(err, flag.ErrHelp) {
 		t.Fatalf("Parse(-h) error = %v, want flag.ErrHelp", err)
+	}
+}
+
+func TestParse_ProductionRequiresAuthSecret(t *testing.T) {
+	t.Setenv(EnvAuthSecret, "")
+	t.Setenv(EnvEnvironment, "production")
+
+	_, err := Parse(nil)
+	if !errors.Is(err, ErrAuthSecretRequired) {
+		t.Fatalf("Parse() error = %v, want %v", err, ErrAuthSecretRequired)
+	}
+}
+
+func TestResolveAuthSecret_UsesProvidedSecret(t *testing.T) {
+	t.Setenv(EnvEnvironment, "")
+	cfg := &Config{AuthSecret: "explicit"}
+	if err := ResolveAuthSecret(cfg); err != nil {
+		t.Fatalf("ResolveAuthSecret() error = %v", err)
+	}
+	if cfg.AuthSecret != "explicit" || cfg.EphemeralAuthSecret {
+		t.Fatalf("cfg = %+v, want explicit secret", cfg)
+	}
+}
+
+func TestResolveAuthSecret_NilConfig(t *testing.T) {
+	if err := ResolveAuthSecret(nil); err == nil {
+		t.Fatal("ResolveAuthSecret(nil) error = nil, want error")
+	}
+}
+
+func TestResolveAuthSecret_EphemeralSecretsDiffer(t *testing.T) {
+	t.Setenv(EnvEnvironment, "")
+	first := &Config{}
+	second := &Config{}
+	if err := ResolveAuthSecret(first); err != nil {
+		t.Fatalf("ResolveAuthSecret() error = %v", err)
+	}
+	if err := ResolveAuthSecret(second); err != nil {
+		t.Fatalf("ResolveAuthSecret() error = %v", err)
+	}
+	if first.AuthSecret == "" || second.AuthSecret == "" {
+		t.Fatal("ephemeral secret is empty")
+	}
+	if first.AuthSecret == second.AuthSecret {
+		t.Fatal("ephemeral secrets must not be reused")
+	}
+	if !first.EphemeralAuthSecret || !second.EphemeralAuthSecret {
+		t.Fatal("EphemeralAuthSecret = false, want true")
+	}
+}
+
+func TestIsProduction(t *testing.T) {
+	t.Setenv(EnvEnvironment, "production")
+	if !IsProduction() {
+		t.Fatal("IsProduction() = false, want true")
+	}
+	t.Setenv(EnvEnvironment, "prod")
+	if !IsProduction() {
+		t.Fatal("IsProduction(prod) = false, want true")
+	}
+	t.Setenv(EnvEnvironment, "dev")
+	if IsProduction() {
+		t.Fatal("IsProduction(dev) = true, want false")
 	}
 }
 
